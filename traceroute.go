@@ -16,6 +16,7 @@ const DEFAULT_FIRST_HOP = 1
 const DEFAULT_TIMEOUT_MS = 500
 const DEFAULT_RETRIES = 3
 const DEFAULT_PACKET_SIZE = 52
+const DEFAULT_RESOLVE = true
 
 // Return the first non-loopback address as a 4 byte IP address. This address
 // is used for sending packets out.
@@ -55,12 +56,13 @@ func destAddr(dest string) (destAddr [4]byte, err error) {
 
 // TracrouteOptions type
 type TracerouteOptions struct {
-	port       int
-	maxHops    int
-	firstHop   int
-	timeoutMs  int
-	retries    int
-	packetSize int
+	port           int
+	maxHops        int
+	firstHop       int
+	timeoutMs      int
+	retries        int
+	packetSize     int
+	resolve        bool
 }
 
 func (options *TracerouteOptions) Port() int {
@@ -127,6 +129,14 @@ func (options *TracerouteOptions) PacketSize() int {
 
 func (options *TracerouteOptions) SetPacketSize(packetSize int) {
 	options.packetSize = packetSize
+}
+
+func (options *TracerouteOptions) Resolve() bool {
+	return options.resolve
+}
+
+func (options *TracerouteOptions) SetSkipResolve(resolve bool){
+	options.resolve = resolve
 }
 
 // TracerouteHop type
@@ -226,13 +236,18 @@ func Traceroute(dest string, options *TracerouteOptions, c ...chan TracerouteHop
 			currAddr := from.(*syscall.SockaddrInet4).Addr
 
 			hop := TracerouteHop{Success: true, Address: currAddr, N: n, ElapsedTime: elapsed, TTL: ttl}
-
-			// TODO: this reverse lookup appears to have some standard timeout that is relatively
-			// high. Consider switching to something where there is greater control.
-			currHost, err := net.LookupAddr(hop.AddressString())
-			if err == nil {
-				hop.Host = currHost[0]
+			
+			if options.Resolve(){
+				// TODO: this reverse lookup appears to have some standard timeout that is relatively
+				// high. Consider switching to something where there is greater control.
+				currHost, err := net.LookupAddr(hop.AddressString())
+				if err == nil {
+					hop.Host = currHost[0]
+				}
+			} else {
+				hop.Host = hop.AddressString()
 			}
+
 
 			notify(hop, c)
 
